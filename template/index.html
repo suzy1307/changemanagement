@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Roster Chat{% endblock title %}
+
+{% block body %}
+
+<!-- bootstrap core css -->
+<link rel="stylesheet" type="text/css" href="{% static 'css/bootstrap.css' %}" />
+
+<!-- fonts style -->
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+<!-- font awesome style -->
+<link href="{% static 'css/font-awesome.min.css' %}" rel="stylesheet" />
+
+<!-- Custom styles for this template -->
+<link href="{% static 'css/style.css' %}" rel="stylesheet" />
+<!-- responsive style -->
+<link href="{% static 'css/responsive.css' %}" rel="stylesheet" />
+
+<!-- slider section -->
+  <section class="slider_section ">
+    <div id="customCarousel1" class="carousel slide" data-ride="carousel">
+      <div class="carousel-inner">
+
+        <div class="carousel-item active">
+          <div class="container ">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="detail-box">
+                  <h1>
+                    Heyyy!!! <br>
+                  </h1>
+                  <p>
+                    Welcome to the heart of innovation and automation, where technology meets efficiency – PLDT Cloud, powered by the dedicated team of DevOps experts at Smartops Fusion.We aim to be the driving force behind the seamless integration of cloud technology into everyday operations, enabling organizations to thrive in an increasingly digital world. </p>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="row">
+                  <div class=" col-lg-10 mx-auto">
+                    <div class="img-box">
+                      <img src="{% static 'images/devops1.png' %}" alt="">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="carousel-item">
+          <div class="container ">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="detail-box">
+                  <h1>
+                    What We Do<br>
+                  </h1>
+                  <p>
+                    At PLDT Smartops Fusion, we specialize in automating and innovating cloud services to optimize performance and maximize efficiency. From provisioning and configuration management to continuous integration and deployment, we leverage the latest tools and technologies to streamline workflows and eliminate manual overhead. </p>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="row">
+                  <div class=" col-lg-10 mx-auto">
+                    <div class="img-box">
+                      <img src="{% static 'images/slider-img.png' %}" alt="">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="carousel-item">
+          <div class="container ">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="detail-box">
+                  <h1>
+                    Who We Are <br>
+                  </h1>
+                  <p>
+                    We are the Smartops Fusion DevOps team, a dynamic group of passionate individuals with a shared vision for the future of cloud computing. With diverse expertise spanning DevOps, system administration, automation, and beyond, we bring a wealth of knowledge and experience to the table. </p>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="row">
+                  <div class=" col-lg-10 mx-auto">
+                    <div class="img-box">
+                      <img src="{% static 'images/slider-img.png' %}" alt="">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+      </div>
+      <div class="carousel_btn-box">
+        <a class="carousel-control-prev" href="#customCarousel1" role="button" data-slide="prev">
+          <i class="fa fa-angle-left" aria-hidden="true"></i>
+          <span class="sr-only">Previous</span>
+        </a>
+        <a class="carousel-control-next" href="#customCarousel1" role="button" data-slide="next">
+          <i class="fa fa-angle-right" aria-hidden="true"></i>
+          <span class="sr-only">Next</span>
+        </a>
+      </div>
+    </div>
+  </section>
+  <!-- end slider section -->
+
+  <!-- jQery -->
+  <script src="{% static 'js/jquery-3.4.1.min.js' %}"></script>
+  <!-- bootstrap js -->
+  <script src="{% static 'js/bootstrap.js' %}"></script>
+  <!-- custom js -->
+  <script src="{% static 'js/custom.js' %}"></script>
+  {% endblock body %}
