@@ -100,7 +100,7 @@ class FillProjectTemplateView(View):
         placeholders = self.get_placeholder_fields(wb)
         
         # Dynamically create a form class with CharField for each placeholder
-        form_class = type('DynamicForm', (ExcelInputForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+        form_class = type('DynamicForm', (ExcelFileForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
         form = form_class()
         
         return render(request, self.template_name, {'form': form, 'project_name': project_name})
@@ -111,7 +111,7 @@ class FillProjectTemplateView(View):
         
         placeholders = self.get_placeholder_fields(wb)
         
-        form_class = type('DynamicForm', (ExcelInputForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+        form_class = type('DynamicForm', (ExcelFileForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
         form = form_class(request.POST)
         
         if form.is_valid():
