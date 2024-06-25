@@ -16,3 +16,9 @@ class InputForm(forms.Form):
     preparation_effort = forms.CharField(label='Preparation Effort', max_length=100)
     implementation_duration = forms.CharField(label='Implementation Duration', max_length=100)
     failure_exposure = forms.CharField(label='Failure Exposure', max_length=100)
+
+
+
+
+class ExcelFileForm(forms.Form):
+    file = forms.FileField()
