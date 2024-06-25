@@ -10,48 +10,21 @@ from django.http import JsonResponse
 from .forms import InputForm
 import json
 from django.shortcuts import render, redirect
-from django.views.generic.edit import FormView
-from django.urls import reverse_lazy
-from .forms import ExcelFileForm
+from frontend.forms import ExcelFileForm
+
+# from django.views.generic.edit import FormView
+# from django.urls import reverse_lazy
+# from .forms import ExcelFileForm
 import pandas as pd
+import openpyxl
+from django.conf import settings
+from django.views import View
+from django import forms
 
-
+PROJECTS = ['PLDT', 'Maxis', 'TKS']
 
 # @login_required
-class UploadExcelView(FormView):
-    template_name = 'upload_excel.html'
-    form_class = ExcelFileForm
-    success_url = reverse_lazy('modify_excel')
 
-    def form_valid(self, form):
-        file = form.cleaned_data['file']
-        df = pd.read_excel(file)
-        self.request.session['df'] = df.to_dict()
-        return super().form_valid(form)
-    
-#def index(request):
-    #return render(request, 'index.html')
-    #return HttpResponse("This will be first page. JODDDDDDD!!!!!!!!!!!!!!!!!!!")
-def modify_excel(request):
-    df_dict = request.session.get('df')
-    if not df_dict:
-        return redirect('upload_excel')
-    
-    if request.method == 'POST':
-        modified_data = {}
-        for key in df_dict.keys():
-            modified_data[key] = request.POST[key]
-        
-        df = pd.DataFrame.from_dict(modified_data)
-        # Save the modified DataFrame back to Excel or perform further operations
-        # Example: df.to_excel('modified_excel.xlsx', index=False)
-
-        return redirect('upload_excel')  # Redirect to upload page or another view
-    
-    context = {
-        'df_dict': df_dict
-    }
-    return render(request, 'modify_excel.html', context)
 
 
 def about(request):
@@ -86,6 +59,74 @@ def about(request):
         form = InputForm()
     
     return render(request, 'input_form.html', {'form': form})
+
+
+
+
+class ProjectSelectForm(forms.Form):
+    project = forms.ChoiceField(choices=[(project, project) for project in PROJECTS], label="Select Project")
+
+class ProjectSelectView(View):
+    template_name = 'project_select.html'
+    form_class = ProjectSelectForm
+
+    def get(self, request, *args, **kwargs):
+        form = self.form_class()
+        return render(request, self.template_name, {'form': form})
+
+    def post(self, request, *args, **kwargs):
+        form = self.form_class(request.POST)
+        if form.is_valid():
+            project = form.cleaned_data['project']
+            return redirect('fill_project_template', project_name=project)
+        return render(request, self.template_name, {'form': form})
+    
+class FillProjectTemplateView(View):
+    template_name = 'fill_project_template.html'
+
+    def get_placeholder_fields(self, wb):
+        placeholders = set()
+        for sheet in wb:
+            for row in sheet.iter_rows():
+                for cell in row:
+                    if isinstance(cell.value, str) and '<' in cell.value and '>' in cell.value:
+                        placeholders.add(cell.value.strip('<>'))
+        return placeholders
+
+    def get(self, request, project_name, *args, **kwargs):
+        template_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}.xlsx')
+        wb = openpyxl.load_workbook(template_path)
+        
+        placeholders = self.get_placeholder_fields(wb)
+        
+        form_class = type('DynamicForm', (ExcelFileForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+        form = form_class()
+        
+        return render(request, self.template_name, {'form': form, 'project_name': project_name})
+
+    def post(self, request, project_name, *args, **kwargs):
+        template_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}.xlsx')
+        wb = openpyxl.load_workbook(template_path)
+        
+        placeholders = self.get_placeholder_fields(wb)
+        
+        form_class = type('DynamicForm', (ExcelInputForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+        form = form_class(request.POST)
+        
+        if form.is_valid():
+            for sheet in wb:
+                for row in sheet.iter_rows():
+                    for cell in row:
+                        if isinstance(cell.value, str) and '<' in cell.value and '>' in cell.value:
+                            placeholder = cell.value.strip('<>')
+                            cell.value = form.cleaned_data[placeholder]
+
+            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{project_name}_filled.xlsx"'
+            wb.save(response)
+            return response
+
+        return render(request, self.template_name, {'form': form, 'project_name': project_name})
 
 
 
