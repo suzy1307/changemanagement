@@ -1,14 +1,12 @@
-from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from django.conf import settings
+from django.http import HttpResponse
+from django.shortcuts import render
 from django.views import View
 from django import forms
-from .forms import InputForm, DynamicForm
 import os
-import json
 import openpyxl
 from io import BytesIO
+from .forms import InputForm, DynamicForm
+from django.conf import settings
 
 PROJECTS = ['PLDT', 'Maxis', 'TKS']
 
@@ -72,8 +70,11 @@ class FillProjectTemplateView(View):
         for sheet in wb:
             for row in sheet.iter_rows():
                 for cell in row:
-                    if isinstance(cell.value, str) and '<' in cell.value and '>' in cell.value:
-                        placeholders.add(cell.value.strip('<>'))
+                    if isinstance(cell.value, str):
+                        if '<' in cell.value and '>' in cell.value:
+                            placeholders.add(cell.value.strip('<>'))
+                        if '**' in cell.value:
+                            placeholders.add(cell.value.strip('**'))
         return placeholders
 
     def get(self, request, project_name, *args, **kwargs):
@@ -87,6 +88,7 @@ class FillProjectTemplateView(View):
 
         placeholders = self.get_placeholder_fields(wb)
 
+        # Dynamically create a form with fields corresponding to placeholders
         form_class = type('DynamicForm', (DynamicForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
         form = form_class()
 
@@ -103,6 +105,7 @@ class FillProjectTemplateView(View):
 
         placeholders = self.get_placeholder_fields(wb)
 
+        # Dynamically create a form with fields corresponding to placeholders
         form_class = type('DynamicForm', (DynamicForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
         form = form_class(request.POST)
 
@@ -111,10 +114,15 @@ class FillProjectTemplateView(View):
                 for sheet in wb:
                     for row in sheet.iter_rows():
                         for cell in row:
-                            if isinstance(cell.value, str) and '<' in cell.value and '>' in cell.value:
-                                placeholder = cell.value.strip('<>')
-                                if placeholder in form.cleaned_data:
-                                    cell.value = form.cleaned_data[placeholder]
+                            if isinstance(cell.value, str):
+                                if '<' in cell.value and '>' in cell.value:
+                                    placeholder = cell.value.strip('<>')
+                                    if placeholder in form.cleaned_data:
+                                        cell.value = form.cleaned_data[placeholder]
+                                elif '**' in cell.value:
+                                    placeholder = cell.value.strip('**')
+                                    if placeholder in form.cleaned_data:
+                                        cell.value = form.cleaned_data[placeholder]
 
                 output = BytesIO()
                 wb.save(output)

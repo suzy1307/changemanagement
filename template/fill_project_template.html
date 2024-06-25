@@ -6,9 +6,9 @@
     </ul>
 {% endif %}
 
-<!-- Your form rendering code here -->
+<!-- Form for filling project template -->
 <form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Submit</button>
+    {% csrf_token %}  {# Include CSRF token for form submission #}
+    {{ form.as_p }}  {# Render form fields as paragraphs (p tags) #}
+    <button type="submit">Submit</button>  {# Submit button to send form data #}
 </form>

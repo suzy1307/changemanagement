@@ -6,6 +6,7 @@ from django.contrib.auth.views import LoginView, LogoutView
 #from frontend.views import UploadExcelView, modify_excel
 from .views import ProjectSelectView, FillProjectTemplateView
 from .views import AboutView, ProjectSelectView, FillProjectTemplateView
+from .views import ProjectSelectView, FillProjectTemplateView
 
 urlpatterns = [
     #path("", views.index, name='home'),  # Root URL pointing to login view
