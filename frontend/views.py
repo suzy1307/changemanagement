@@ -1,36 +1,24 @@
-from django.http import HttpResponse
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
-import os
-from django.conf import settings
-from django.core.files.storage import FileSystemStorage
-from django.shortcuts import render ,HttpResponse
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from .forms import InputForm
-import json
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
-from frontend.forms import ExcelFileForm
-
-# from django.views.generic.edit import FormView
-# from django.urls import reverse_lazy
-# from .forms import ExcelFileForm
-import pandas as pd
-import openpyxl
+from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.views import View
 from django import forms
+from .forms import InputForm, DynamicForm
+import os
+import json
+import openpyxl
 
 PROJECTS = ['PLDT', 'Maxis', 'TKS']
 
-# @login_required
+class AboutView(View):
+    template_name = 'input_form.html'
 
+    def get(self, request, *args, **kwargs):
+        form = InputForm()
+        return render(request, self.template_name, {'form': form})
 
-
-def about(request):
-    #return HttpResponse("This will be ABOUT page. JODDDDDDD!!!!!!!!!!!!!!!!!!!")
-
-    if request.method == 'POST':
+    def post(self, request, *args, **kwargs):
         form = InputForm(request.POST)
         if form.is_valid():
             data = {
@@ -55,13 +43,7 @@ def about(request):
             response = HttpResponse(json.dumps(data), content_type='application/json')
             response['Content-Disposition'] = 'attachment; filename="data.json"'
             return response
-    else:
-        form = InputForm()
-    
-    return render(request, 'input_form.html', {'form': form})
-
-
-
+        return render(request, self.template_name, {'form': form})
 
 class ProjectSelectForm(forms.Form):
     project = forms.ChoiceField(choices=[(project, project) for project in PROJECTS], label="Select Project")
@@ -80,7 +62,7 @@ class ProjectSelectView(View):
             project = form.cleaned_data['project']
             return redirect('fill_project_template', project_name=project)
         return render(request, self.template_name, {'form': form})
-    
+
 class FillProjectTemplateView(View):
     template_name = 'fill_project_template.html'
 
@@ -95,41 +77,48 @@ class FillProjectTemplateView(View):
 
     def get(self, request, project_name, *args, **kwargs):
         template_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}.xlsx')
-        wb = openpyxl.load_workbook(template_path)
-        
+        try:
+            wb = openpyxl.load_workbook(template_path)
+        except FileNotFoundError:
+            return HttpResponse(f'Template file not found: {template_path}', status=404)
+        except openpyxl.utils.exceptions.InvalidFileException:
+            return HttpResponse(f'Invalid template file: {template_path}', status=400)
+
         placeholders = self.get_placeholder_fields(wb)
-        
-        # Dynamically create a form class with CharField for each placeholder
-        form_class = type('DynamicForm', (ExcelFileForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+
+        form_class = type('DynamicForm', (DynamicForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
         form = form_class()
-        
+
         return render(request, self.template_name, {'form': form, 'project_name': project_name})
 
     def post(self, request, project_name, *args, **kwargs):
         template_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}.xlsx')
-        wb = openpyxl.load_workbook(template_path)
-        
+        try:
+            wb = openpyxl.load_workbook(template_path)
+        except FileNotFoundError:
+            return HttpResponse(f'Template file not found: {template_path}', status=404)
+        except openpyxl.utils.exceptions.InvalidFileException:
+            return HttpResponse(f'Invalid template file: {template_path}', status=400)
+
         placeholders = self.get_placeholder_fields(wb)
-        
-        form_class = type('DynamicForm', (ExcelFileForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+
+        form_class = type('DynamicForm', (DynamicForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
         form = form_class(request.POST)
-        
+
         if form.is_valid():
-            for sheet in wb:
-                for row in sheet.iter_rows():
-                    for cell in row:
-                        if isinstance(cell.value, str) and '<' in cell.value and '>' in cell.value:
-                            placeholder = cell.value.strip('<>')
-                            cell.value = form.cleaned_data[placeholder]
+            try:
+                for sheet in wb:
+                    for row in sheet.iter_rows():
+                        for cell in row:
+                            if isinstance(cell.value, str) and '<' in cell.value and '>' in cell.value:
+                                placeholder = cell.value.strip('<>')
+                                if placeholder in form.cleaned_data:
+                                    cell.value = form.cleaned_data[placeholder]
 
-            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            response['Content-Disposition'] = f'attachment; filename="{project_name}_filled.xlsx"'
-            wb.save(response)
-            return response
+                output_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}_filled.xlsx')
+                wb.save(output_path)
 
+                return render(request, 'success_template.html', {'project_name': project_name})
+            except Exception as e:
+                return HttpResponse(f'Error while processing the workbook: {str(e)}', status=500)
         return render(request, self.template_name, {'form': form, 'project_name': project_name})
-
-
-
-
-

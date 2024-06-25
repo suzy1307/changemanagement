@@ -21,4 +21,7 @@ class InputForm(forms.Form):
 
 
 class ExcelFileForm(forms.Form):
-    file = forms.FileField()
+    pass
+
+class DynamicForm(forms.Form):
+    pass  # Placeholder; add your dynamic fields based on requirements
