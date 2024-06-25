@@ -8,6 +8,7 @@ from .forms import InputForm, DynamicForm
 import os
 import json
 import openpyxl
+from io import BytesIO
 
 PROJECTS = ['PLDT', 'Maxis', 'TKS']
 
@@ -115,10 +116,15 @@ class FillProjectTemplateView(View):
                                 if placeholder in form.cleaned_data:
                                     cell.value = form.cleaned_data[placeholder]
 
-                output_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}_filled.xlsx')
-                wb.save(output_path)
+                output = BytesIO()
+                wb.save(output)
+                output.seek(0)
 
-                return render(request, 'success_template.html', {'project_name': project_name})
+                response = HttpResponse(output, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                response['Content-Disposition'] = f'attachment; filename="{project_name}_filled.xlsx"'
+                return response
+
             except Exception as e:
                 return HttpResponse(f'Error while processing the workbook: {str(e)}', status=500)
+
         return render(request, self.template_name, {'form': form, 'project_name': project_name})
