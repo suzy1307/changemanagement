@@ -1,12 +1,16 @@
+import os
+import json
+from io import BytesIO
+import openpyxl
+
 from django.http import HttpResponse
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.views import View
 from django import forms
-import os
-import openpyxl
-from io import BytesIO
-from .forms import InputForm, DynamicForm
 from django.conf import settings
+
+
+from .forms import InputForm, DynamicForm
 
 PROJECTS = ['PLDT', 'Maxis', 'TKS']
 
@@ -59,11 +63,16 @@ class ProjectSelectView(View):
         form = self.form_class(request.POST)
         if form.is_valid():
             project = form.cleaned_data['project']
-            return redirect('fill_project_template', project_name=project)
+            request.session['project_name'] = project
+            return redirect('fill_project_template_step1', project_name=project)
         return render(request, self.template_name, {'form': form})
 
-class FillProjectTemplateView(View):
-    template_name = 'fill_project_template.html'
+
+
+from django.shortcuts import redirect
+
+class FillProjectTemplateStep1View(View):
+    template_name = 'fill_project_template_step1.html'
 
     def get_placeholder_fields(self, wb):
         placeholders = set()
@@ -73,8 +82,6 @@ class FillProjectTemplateView(View):
                     if isinstance(cell.value, str):
                         if '<' in cell.value and '>' in cell.value:
                             placeholders.add(cell.value.strip('<>'))
-                        if '**' in cell.value:
-                            placeholders.add(cell.value.strip('**'))
         return placeholders
 
     def get(self, request, project_name, *args, **kwargs):
@@ -119,10 +126,74 @@ class FillProjectTemplateView(View):
                                     placeholder = cell.value.strip('<>')
                                     if placeholder in form.cleaned_data:
                                         cell.value = form.cleaned_data[placeholder]
-                                elif '**' in cell.value:
-                                    placeholder = cell.value.strip('**')
-                                    if placeholder in form.cleaned_data:
-                                        cell.value = form.cleaned_data[placeholder]
+
+                # Save the filled workbook to BytesIO
+                output = BytesIO()
+                wb.save(output)
+                output.seek(0)
+
+                # # Prepare HTTP response with the filled Excel file
+                # response = HttpResponse(output, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                # response['Content-Disposition'] = f'attachment; filename="{project_name}_filled.xlsx"'
+                # return response
+
+            except Exception as e:
+                return HttpResponse(f'Error while processing the workbook: {str(e)}', status=500)
+
+        return redirect('fill_project_template_step2', project_name=project_name)
+
+
+class FillProjectTemplateStep2View(View):
+    def get_placeholder_fields(self, wb):
+        placeholders = set()
+        for sheet in wb:
+            for row in sheet.iter_rows():
+                for cell in row:
+                    if isinstance(cell.value, str) and '**' in cell.value:
+                        placeholders.add(cell.value.strip('**'))
+        return placeholders
+
+    def get(self, request, project_name):
+        template_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}.xlsx')
+        try:
+            wb = openpyxl.load_workbook(template_path)
+        except FileNotFoundError:
+            return HttpResponse(f'Template file not found: {template_path}', status=404)
+        except openpyxl.utils.exceptions.InvalidFileException:
+            return HttpResponse(f'Invalid template file: {template_path}', status=400)
+
+        placeholders = self.get_placeholder_fields(wb)
+
+        # Dynamically create a form with fields corresponding to placeholders
+        form_class = type('DynamicForm', (forms.Form,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+        form = form_class()
+
+        return render(request, 'fill_project_template_step2.html', {'form': form, 'project_name': project_name})
+
+    def post(self, request, project_name):
+        template_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}.xlsx')
+        try:
+            wb = openpyxl.load_workbook(template_path)
+        except FileNotFoundError:
+            return HttpResponse(f'Template file not found: {template_path}', status=404)
+        except openpyxl.utils.exceptions.InvalidFileException:
+            return HttpResponse(f'Invalid template file: {template_path}', status=400)
+
+        placeholders = self.get_placeholder_fields(wb)
+
+        # Dynamically create a form with fields corresponding to placeholders
+        form_class = type('DynamicForm', (forms.Form,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+        form = form_class(request.POST)
+
+        if form.is_valid():
+            try:
+                for sheet in wb:
+                    for row in sheet.iter_rows():
+                        for cell in row:
+                            if isinstance(cell.value, str) and '**' in cell.value:
+                                placeholder = cell.value.strip('**')
+                                if placeholder in form.cleaned_data:
+                                    cell.value = form.cleaned_data[placeholder]
 
                 output = BytesIO()
                 wb.save(output)
@@ -135,4 +206,4 @@ class FillProjectTemplateView(View):
             except Exception as e:
                 return HttpResponse(f'Error while processing the workbook: {str(e)}', status=500)
 
-        return render(request, self.template_name, {'form': form, 'project_name': project_name})
+        return render(request, 'fill_project_template_step2.html', {'form': form, 'project_name': project_name})

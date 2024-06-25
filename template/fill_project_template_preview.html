@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Filled Template Preview</title>
+</head>
+<body>
+    <h1>Filled Template Preview: {{ project_name }}</h1>
+
+    <!-- Display the filled Excel file -->
+    {% if filled_excel %}
+        <iframe src="{{ filled_excel }}" width="100%" height="600px"></iframe>
+    {% else %}
+        <p>No preview available.</p>
+    {% endif %}
+
+    <!-- Add navigation buttons or links for further actions -->
+    <a href="{% url 'next_step_view' project_name %}" class="btn btn-primary">Next Step</a>
+</body>
+</html>
