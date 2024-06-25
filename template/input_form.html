@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Input Form</title>
     <!-- Bootstrap CSS -->
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
@@ -14,11 +15,74 @@
         .form-container {
             background-color: #ffffff;
             padding: 30px;
-            border-radius: 10px;
+            border-radius: 20px; /* Adjust border radius for the entire form container */
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
         .form-title {
             margin-bottom: 30px;
+            font-size: 24px; /* Adjust font size for the form title */
+        }
+        .form-control {
+            border: none; /* Remove default border */
+            border-radius: 12px; /* Adjust border radius for form controls */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Add subtle shadow */
+            padding: 10px 15px; /* Adjust padding for a comfortable input height */
+            background-color: #f8f9fa; /* Light background color */
+            font-size: 16px; /* Adjust font size */
+            transition: box-shadow 0.3s ease; /* Smooth transition for shadow */
+        }
+        .form-control:focus {
+            outline: none; /* Remove outline on focus */
+            box-shadow: 0 0 10px rgba(0, 123, 255, 0.5); /* Add focus effect */
+        }
+        .btn-primary {
+            border: none; /* Remove default border */
+            border-radius: 12px; /* Adjust border radius for buttons */
+            padding: 12px 24px; /* Adjust padding for a comfortable button size */
+            font-size: 16px; /* Adjust font size */
+            background-color: #007bff; /* Primary button color */
+            transition: background-color 0.3s ease; /* Smooth transition for background */
+        }
+        .btn-primary:hover {
+            background-color: #0056b3; /* Darker shade on hover */
+        }
+        .form-group {
+            margin-bottom: 20px; /* Adjust margin bottom for form groups */
+        }
+        /* Custom styling for select elements */
+        select.form-control {
+            appearance: none; /* Remove default appearance */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            border: none; /* Remove default border */
+            border-radius: 12px; /* Adjust border radius */
+            padding: 10px 15px; /* Adjust padding */
+            background-color: #f8f9fa; /* Light background color */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Add subtle shadow */
+            font-size: 16px; /* Adjust font size */
+            transition: box-shadow 0.3s ease; /* Smooth transition for shadow */
+        }
+        /* Custom styling for checkboxes and radio buttons */
+        .form-check-input {
+            appearance: none; /* Remove default appearance */
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background-color: #ffffff;
+            border: 2px solid #adb5bd;
+            border-radius: 50%;
+            vertical-align: middle;
+            cursor: pointer;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        .form-check-input:checked {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .form-check-input:focus {
+            outline: none; /* Remove outline on focus */
         }
     </style>
 </head>
@@ -28,17 +92,91 @@
             <h2 class="form-title text-center">Input Form</h2>
             <form method="post">
                 {% csrf_token %}
-                {{ form.as_p }}
+
+                <!-- URL, Username, Password fields -->
+                <div class="form-group">
+                    <label for="urlField">URL:</label>
+                    <input type="url" class="form-control" id="urlField" name="url" placeholder="Enter URL">
+                </div>
+                <div class="form-group">
+                    <label for="usernameField">Username:</label>
+                    <input type="text" class="form-control" id="usernameField" name="username" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label for="passwordField">Password:</label>
+                    <input type="password" class="form-control" id="passwordField" name="password" placeholder="Enter password">
+                </div>
+
+                <!-- Other fields -->
+                <div class="form-group">
+                    <label for="searchTermField">Search Term:</label>
+                    <input type="text" class="form-control" id="searchTermField" name="search_term" placeholder="Enter search term">
+                </div>
+                <div class="form-group">
+                    <label for="summaryTextField">Summary Text:</label>
+                    <textarea class="form-control" id="summaryTextField" name="summary_text" rows="3" placeholder="Enter summary text"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="affectedAreaField">Affected Area:</label>
+                    <input type="text" class="form-control" id="affectedAreaField" name="affected_area" placeholder="Enter affected area">
+                </div>
+                <div class="form-group">
+                    <label for="companyNameField">Company Name:</label>
+                    <input type="text" class="form-control" id="companyNameField" name="company_name" placeholder="Enter company name">
+                </div>
+
+                <!-- Date pickers with Bootstrap -->
+                <div class="form-group">
+                    <label for="requestedDateField">Requested Date:</label>
+                    <input type="date" class="form-control" id="requestedDateField" name="requested_date">
+                </div>
+                <div class="form-group">
+                    <label for="endDateField">End Date:</label>
+                    <input type="date" class="form-control" id="endDateField" name="end_date">
+                </div>
+
+                <!-- Number of Users, Affected Services, Resources Required, etc. -->
+                <div class="form-group">
+                    <label for="numberOfUsersField">Number of Users:</label>
+                    <input type="number" class="form-control" id="numberOfUsersField" name="number_of_users">
+                </div>
+                <div class="form-group">
+                    <label for="affectedServicesField">Affected Services:</label>
+                    <select class="form-control" id="affectedServicesField" name="affected_services">
+                        <option value="service1">Service 1</option>
+                        <option value="service2">Service 2</option>
+                        <option value="service3">Service 3</option>
+                        <!-- Add more services as needed -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="resourcesRequiredField">Resources Required to Prepare:</label>
+                    <input type="text" class="form-control" id="resourcesRequiredField" name="resources_required">
+                </div>
+                <div class="form-group">
+                    <label for="preparationEffortField">Preparation Effort:</label>
+                    <input type="text" class="form-control" id="preparationEffortField" name="preparation_effort">
+                </div>
+                <div class="form-group">
+                    <label for="implementationDurationField">Implementation Duration:</label>
+                    <input type="text" class="form-control" id="implementationDurationField" name="implementation_duration">
+                </div>
+                <div class="form-group">
+                    <label for="failureExposureField">Failure Exposure:</label>
+                    <input type="text" class="form-control" id="failureExposureField" name="failure_exposure">
+                </div>
+
+                <!-- Submit button -->
                 <div class="text-center">
                     <button type="submit" class="btn btn-primary">Submit</button>
                 </div>
             </form>
         </div>
     </div>
+
     <!-- Bootstrap JS and dependencies -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
-
