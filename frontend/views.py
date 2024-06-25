@@ -8,9 +8,11 @@ from django.shortcuts import render, redirect
 from django.views import View
 from django import forms
 from django.conf import settings
-
+import requests
+import openai
 
 from .forms import InputForm, DynamicForm
+from datasets import load_dataset
 
 PROJECTS = ['PLDT', 'Maxis', 'TKS']
 
@@ -152,6 +154,26 @@ class FillProjectTemplateStep2View(View):
                     if isinstance(cell.value, str) and '**' in cell.value:
                         placeholders.add(cell.value.strip('**'))
         return placeholders
+    
+
+    def send_to_openai(self, text):
+        try:
+            openai.api_key = 'sk-proj-NxZVgogGgeOB6o1iCeQzT3BlbkFJXHJ1HFruOF6DfOpMJs40'  # Set your OpenAI API key here
+
+            response = openai.Completion.create(
+                engine="gpt-3.5-turbo",  # Replace with the appropriate engine name
+                prompt=text,
+                max_tokens=150
+            )
+
+            return response['choices'][0]['text']
+
+        except requests.RequestException as e:
+            raise RuntimeError(f'Error communicating with OpenAI API: {str(e)}')
+
+        except Exception as e:
+            raise RuntimeError(f'Error with OpenAI API: {str(e)}')
+
 
     def get(self, request, project_name):
         template_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}.xlsx')
@@ -193,7 +215,10 @@ class FillProjectTemplateStep2View(View):
                             if isinstance(cell.value, str) and '**' in cell.value:
                                 placeholder = cell.value.strip('**')
                                 if placeholder in form.cleaned_data:
-                                    cell.value = form.cleaned_data[placeholder]
+                                    # Send cleaned data to OpenAI
+                                    ai_response = self.send_to_openai(form.cleaned_data[placeholder])
+                                    # Update cell with AI response
+                                    cell.value = ai_response.get('choices', [{'text': ''}])[0].get('text', '')  # Adjust based on actual API response structure
 
                 output = BytesIO()
                 wb.save(output)
