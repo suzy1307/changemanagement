@@ -1,9 +1,11 @@
+import base64
 import os
 import json
 from io import BytesIO
+import time
 import openpyxl
 
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.views import View
 from django import forms
@@ -154,40 +156,93 @@ class FillProjectTemplateStep2View(View):
                     if isinstance(cell.value, str) and '**' in cell.value:
                         placeholders.add(cell.value.strip('**'))
         return placeholders
-    
 
-    def send_to_openai(self, text):
+    def send_to_private_llm(self, text):
+        url = "https://chat-ms-amaiz-backend-ms-prod.at-azure-amaiz-55185456.corp.amdocs.azr/api/v1/chats/send-message"
+        headers = {
+            "accept": "application/json",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "username": "shwetac",  # Your username
+            "apikey": "01923c96-48f8-4fd4-9aae-651e3bee9586",  # Your API key
+            "conv_id": "",
+            "messages": [
+                {
+                    "user": text  # Use the text parameter here
+                }
+            ],
+            "promptfilename": "",
+            "promptname": "",
+            "prompttype": "system",
+            "promptrole": "act as ChatGPT",
+            "prompttask": "",
+            "promptexamples": "",
+            "promptformat": "",
+            "promptrestrictions": "",
+            "promptadditional": "",
+            "max_tokens": 4000,
+            "model_type": "GPT3.5_16K",
+            "temperature": 0.1,
+            "topKChunks": 2,
+            "read_from_your_data": False,
+            "document_groupname": "",
+            "document_grouptags": [],
+            "data_filenames": [],
+            "find_the_best_response": False,
+            "chat_attr": {},
+            "additional_attr": {}
+        }
+
+        ca_bundle_path = r'C:\Users\shwetac\project\changemanagement\certs\amdcerts.pem'  # Path to your CA bundle
+
         try:
-            openai.api_key = 'sk-proj-NxZVgogGgeOB6o1iCeQzT3BlbkFJXHJ1HFruOF6DfOpMJs40'  # Set your OpenAI API key here
+            response = requests.post(url, headers=headers, data=json.dumps(data), verify=ca_bundle_path)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            response_json = response.json()
+            task_id = response_json.get("task_id")
+            if not task_id:
+                raise RuntimeError("Error: No task_id in response")
 
-            response = openai.Completion.create(
-                engine="gpt-3.5-turbo",  # Replace with the appropriate engine name
-                prompt=text,
-                max_tokens=150
-            )
+            status_url = f"https://chat-ms-amaiz-backend-ms-prod.at-azure-amaiz-55185456.corp.amdocs.azr/api/v1/chats/status/{task_id}"
+            status_headers = {'accept': 'application/json'}
 
-            return response['choices'][0]['text']
+            # Poll the status endpoint until the task is complete
+            result = ""
+            while True:
+                chat_results = requests.get(status_url, headers=status_headers, verify=ca_bundle_path)
+                chat_data = chat_results.json()
+                if chat_data.get("status") == "Complete":
+                    result = chat_data.get("result")
+                    break
+                time.sleep(1)
+
+            return result
 
         except requests.RequestException as e:
-            raise RuntimeError(f'Error communicating with OpenAI API: {str(e)}')
+            print(f"Error communicating with private LLM API: {str(e)}")  # Debugging: Log the error
+            raise RuntimeError(f'Error communicating with private LLM API: {str(e)}')
 
-        except Exception as e:
-            raise RuntimeError(f'Error with OpenAI API: {str(e)}')
+    def load_workbook(self, template_path):
+        try:
+            return openpyxl.load_workbook(template_path)
+        except FileNotFoundError:
+            raise FileNotFoundError(f'Template file not found: {template_path}')
+        except openpyxl.utils.exceptions.InvalidFileException:
+            raise ValueError(f'Invalid template file: {template_path}')
 
+    def create_dynamic_form(self, placeholders):
+        return type('DynamicForm', (forms.Form,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
 
     def get(self, request, project_name):
         template_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}.xlsx')
         try:
-            wb = openpyxl.load_workbook(template_path)
-        except FileNotFoundError:
-            return HttpResponse(f'Template file not found: {template_path}', status=404)
-        except openpyxl.utils.exceptions.InvalidFileException:
-            return HttpResponse(f'Invalid template file: {template_path}', status=400)
+            wb = self.load_workbook(template_path)
+        except (FileNotFoundError, ValueError) as e:
+            return HttpResponse(str(e), status=404 if isinstance(e, FileNotFoundError) else 400)
 
         placeholders = self.get_placeholder_fields(wb)
-
-        # Dynamically create a form with fields corresponding to placeholders
-        form_class = type('DynamicForm', (forms.Form,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+        form_class = self.create_dynamic_form(placeholders)
         form = form_class()
 
         return render(request, 'fill_project_template_step2.html', {'form': form, 'project_name': project_name})
@@ -197,38 +252,41 @@ class FillProjectTemplateStep2View(View):
         try:
             wb = openpyxl.load_workbook(template_path)
         except FileNotFoundError:
-            return HttpResponse(f'Template file not found: {template_path}', status=404)
+            return JsonResponse({'error': f'Template file not found: {template_path}'}, status=404)
         except openpyxl.utils.exceptions.InvalidFileException:
-            return HttpResponse(f'Invalid template file: {template_path}', status=400)
+            return JsonResponse({'error': f'Invalid template file: {template_path}'}, status=400)
 
         placeholders = self.get_placeholder_fields(wb)
-
-        # Dynamically create a form with fields corresponding to placeholders
-        form_class = type('DynamicForm', (forms.Form,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+        form_class = self.create_dynamic_form(placeholders)
         form = form_class(request.POST)
 
         if form.is_valid():
             try:
+                filled_wb = openpyxl.Workbook()
+
                 for sheet in wb:
-                    for row in sheet.iter_rows():
-                        for cell in row:
+                    filled_sheet = filled_wb.create_sheet(title=sheet.title)
+                    for row_idx, row in enumerate(sheet.iter_rows(), start=1):
+                        for col_idx, cell in enumerate(row, start=1):
                             if isinstance(cell.value, str) and '**' in cell.value:
                                 placeholder = cell.value.strip('**')
                                 if placeholder in form.cleaned_data:
-                                    # Send cleaned data to OpenAI
-                                    ai_response = self.send_to_openai(form.cleaned_data[placeholder])
-                                    # Update cell with AI response
-                                    cell.value = ai_response.get('choices', [{'text': ''}])[0].get('text', '')  # Adjust based on actual API response structure
+                                    ai_response = self.send_to_private_llm(form.cleaned_data[placeholder])
+                                    filled_sheet.cell(row=row_idx, column=col_idx, value=ai_response)
+                            else:
+                                filled_sheet.cell(row=row_idx, column=col_idx, value=cell.value)
 
-                output = BytesIO()
-                wb.save(output)
-                output.seek(0)
+                filled_buffer = BytesIO()
+                filled_wb.save(filled_buffer)
+                filled_buffer.seek(0)
 
-                response = HttpResponse(output, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                # Prepare HttpResponse to trigger file download
+                response = HttpResponse(filled_buffer, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 response['Content-Disposition'] = f'attachment; filename="{project_name}_filled.xlsx"'
+
                 return response
 
             except Exception as e:
-                return HttpResponse(f'Error while processing the workbook: {str(e)}', status=500)
+                return JsonResponse({'error': str(e)}, status=500)
 
-        return render(request, 'fill_project_template_step2.html', {'form': form, 'project_name': project_name})
+        return JsonResponse({'errors': form.errors}, status=400)

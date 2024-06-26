@@ -1,14 +1,165 @@
-{% if messages %}
-    <ul class="messages">
-        {% for message in messages %}
-            <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
-        {% endfor %}
-    </ul>
-{% endif %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fill Project Template</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        /* Basic styles for the modal dialog */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+        }
 
-<!-- Form for filling project template -->
-<form method="post" enctype="multipart/form-data">
-    {% csrf_token %}  {# Include CSRF token for form submission #}
-    {{ form.as_p }}  {# Render form fields as paragraphs (p tags) #}
-    <button type="submit">Submit</button>  {# Submit button to send form data #}
-</form>
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; /* Could be more or less, depending on screen size */
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+    <script>
+        $(document).ready(function() {
+            $('form').on('submit', function(event) {
+                event.preventDefault(); // Prevent the form from submitting the traditional way
+
+                console.log('Form submitted'); // Debugging: Log form submission
+
+                const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                $.ajax({
+                    url: window.location.href, // Use current URL
+                    type: 'POST',
+                    data: $(this).serialize(),
+                    headers: {
+                        'X-CSRFToken': csrftoken
+                    },
+                    success: function(response) {
+                        console.log('AJAX request successful'); // Debugging: Log successful AJAX request
+                        console.log('Response:', response); // Debugging: Log the response
+
+                        if (response.responses) {
+                            let dialogContent = '<ul>';
+                            for (const [key, value] of Object.entries(response.responses)) {
+                                dialogContent += `<li><strong>${key}:</strong> ${value}</li>`;
+                            }
+                            dialogContent += '</ul>';
+                            showDialog(dialogContent);
+
+                            // Trigger download
+                            downloadExcel(response.excel_data);
+                        } else if (response.errors) {
+                            alert('Form validation errors: ' + JSON.stringify(response.errors));
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.log('AJAX request failed'); // Debugging: Log failed AJAX request
+                        console.log('Error:', xhr.responseText); // Debugging: Log the error
+                        alert('An error occurred: ' + xhr.responseText);
+                    }
+                });
+            });
+
+            function showDialog(content) {
+                console.log('Showing dialog with content:', content); // Debugging: Log dialog content
+
+                const modal = document.getElementById('myModal');
+                const modalContent = document.getElementById('modal-content');
+                if (modalContent) {
+                    modalContent.innerHTML = content;
+                } else {
+                    console.error('Modal content element not found');
+                    return;
+                }
+
+                const span = document.getElementsByClassName('close')[0];
+                if (span) {
+                    span.onclick = function() {
+                        modal.style.display = 'none';
+                    }
+                } else {
+                    console.error('Close button element not found');
+                    return;
+                }
+
+                window.onclick = function(event) {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+
+                modal.style.display = 'block';
+            }
+
+            function downloadExcel(data) {
+                const blob = base64toBlob(data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'filled_template.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+
+            function base64toBlob(base64Data, contentType) {
+                const sliceSize = 512;
+                const byteCharacters = atob(base64Data);
+                const byteArrays = [];
+
+                for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+                    const slice = byteCharacters.slice(offset, offset + sliceSize);
+
+                    const byteNumbers = new Array(slice.length);
+                    for (let i = 0; i < slice.length; i++) {
+                        byteNumbers[i] = slice.charCodeAt(i);
+                    }
+
+                    const byteArray = new Uint8Array(byteNumbers);
+                    byteArrays.push(byteArray);
+                }
+
+                return new Blob(byteArrays, { type: contentType });
+            }
+        });
+    </script>
+</head>
+<body>
+    <h1>Fill Project Template for {{ project_name }}</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Submit</button>
+    </form>
+
+    <!-- The Modal -->
+    <div id="myModal" class="modal">
+        <!-- Modal content -->
+        <div class="modal-content" id="modal-content">
+            <span class="close">&times;</span>
+        </div>
+    </div>
+</body>
+</html>
