@@ -73,7 +73,7 @@ class ProjectSelectView(View):
 
 
 
-from django.shortcuts import redirect
+
 
 class FillProjectTemplateStep1View(View):
     template_name = 'fill_project_template_step1.html'
@@ -83,9 +83,8 @@ class FillProjectTemplateStep1View(View):
         for sheet in wb:
             for row in sheet.iter_rows():
                 for cell in row:
-                    if isinstance(cell.value, str):
-                        if '<' in cell.value and '>' in cell.value:
-                            placeholders.add(cell.value.strip('<>'))
+                    if isinstance(cell.value, str) and '<' in cell.value and '>' in cell.value:
+                        placeholders.add(cell.value.strip('<>'))
         return placeholders
 
     def get(self, request, project_name, *args, **kwargs):
@@ -100,7 +99,7 @@ class FillProjectTemplateStep1View(View):
         placeholders = self.get_placeholder_fields(wb)
 
         # Dynamically create a form with fields corresponding to placeholders
-        form_class = type('DynamicForm', (DynamicForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+        form_class = type('DynamicForm', (forms.Form,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
         form = form_class()
 
         return render(request, self.template_name, {'form': form, 'project_name': project_name})
@@ -117,37 +116,19 @@ class FillProjectTemplateStep1View(View):
         placeholders = self.get_placeholder_fields(wb)
 
         # Dynamically create a form with fields corresponding to placeholders
-        form_class = type('DynamicForm', (DynamicForm,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
+        form_class = type('DynamicForm', (forms.Form,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
         form = form_class(request.POST)
 
         if form.is_valid():
-            try:
-                for sheet in wb:
-                    for row in sheet.iter_rows():
-                        for cell in row:
-                            if isinstance(cell.value, str):
-                                if '<' in cell.value and '>' in cell.value:
-                                    placeholder = cell.value.strip('<>')
-                                    if placeholder in form.cleaned_data:
-                                        cell.value = form.cleaned_data[placeholder]
+            request.session['step1_data'] = form.cleaned_data
+            return redirect('fill_project_template_step2', project_name=project_name)
 
-                # Save the filled workbook to BytesIO
-                output = BytesIO()
-                wb.save(output)
-                output.seek(0)
-
-                # # Prepare HTTP response with the filled Excel file
-                # response = HttpResponse(output, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                # response['Content-Disposition'] = f'attachment; filename="{project_name}_filled.xlsx"'
-                # return response
-
-            except Exception as e:
-                return HttpResponse(f'Error while processing the workbook: {str(e)}', status=500)
-
-        return redirect('fill_project_template_step2', project_name=project_name)
+        return render(request, self.template_name, {'form': form, 'project_name': project_name})
 
 
 class FillProjectTemplateStep2View(View):
+    template_name = 'fill_project_template_step2.html'
+
     def get_placeholder_fields(self, wb):
         placeholders = set()
         for sheet in wb:
@@ -217,6 +198,7 @@ class FillProjectTemplateStep2View(View):
                     break
                 time.sleep(1)
 
+            print("Received response from private LLM:", result)  # Debugging: Print LLM response
             return result
 
         except requests.RequestException as e:
@@ -237,17 +219,20 @@ class FillProjectTemplateStep2View(View):
     def get(self, request, project_name):
         template_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}.xlsx')
         try:
-            wb = self.load_workbook(template_path)
-        except (FileNotFoundError, ValueError) as e:
-            return HttpResponse(str(e), status=404 if isinstance(e, FileNotFoundError) else 400)
+            wb = openpyxl.load_workbook(template_path)
+        except FileNotFoundError:
+            return HttpResponse(f'Template file not found: {template_path}', status=404)
+        except openpyxl.utils.exceptions.InvalidFileException:
+            return HttpResponse(f'Invalid template file: {template_path}', status=400)
 
         placeholders = self.get_placeholder_fields(wb)
-        form_class = self.create_dynamic_form(placeholders)
+        form_class = type('DynamicForm', (forms.Form,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
         form = form_class()
 
-        return render(request, 'fill_project_template_step2.html', {'form': form, 'project_name': project_name})
+        return render(request, self.template_name, {'form': form, 'project_name': project_name})
 
     def post(self, request, project_name):
+        step1_data = request.session.get('step1_data', {})
         template_path = os.path.join(settings.BASE_DIR, 'templates', f'{project_name}.xlsx')
         try:
             wb = openpyxl.load_workbook(template_path)
@@ -257,30 +242,28 @@ class FillProjectTemplateStep2View(View):
             return JsonResponse({'error': f'Invalid template file: {template_path}'}, status=400)
 
         placeholders = self.get_placeholder_fields(wb)
-        form_class = self.create_dynamic_form(placeholders)
+        form_class = type('DynamicForm', (forms.Form,), {placeholder: forms.CharField(label=placeholder) for placeholder in placeholders})
         form = form_class(request.POST)
 
         if form.is_valid():
             try:
-                filled_wb = openpyxl.Workbook()
-
-                for sheet in wb:
-                    filled_sheet = filled_wb.create_sheet(title=sheet.title)
-                    for row_idx, row in enumerate(sheet.iter_rows(), start=1):
-                        for col_idx, cell in enumerate(row, start=1):
+                for sheet in wb.worksheets:
+                    for row in sheet.iter_rows():
+                        for cell in row:
                             if isinstance(cell.value, str) and '**' in cell.value:
                                 placeholder = cell.value.strip('**')
                                 if placeholder in form.cleaned_data:
                                     ai_response = self.send_to_private_llm(form.cleaned_data[placeholder])
-                                    filled_sheet.cell(row=row_idx, column=col_idx, value=ai_response)
-                            else:
-                                filled_sheet.cell(row=row_idx, column=col_idx, value=cell.value)
+                                    cell.value = ai_response
+                            elif isinstance(cell.value, str) and '<' in cell.value and '>' in cell.value:
+                                placeholder = cell.value.strip('<>')
+                                if placeholder in step1_data:
+                                    cell.value = step1_data[placeholder]
 
                 filled_buffer = BytesIO()
-                filled_wb.save(filled_buffer)
+                wb.save(filled_buffer)
                 filled_buffer.seek(0)
 
-                # Prepare HttpResponse to trigger file download
                 response = HttpResponse(filled_buffer, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 response['Content-Disposition'] = f'attachment; filename="{project_name}_filled.xlsx"'
 
@@ -289,4 +272,4 @@ class FillProjectTemplateStep2View(View):
             except Exception as e:
                 return JsonResponse({'error': str(e)}, status=500)
 
-        return JsonResponse({'errors': form.errors}, status=400)
+        return render(request, self.template_name, {'form': form, 'project_name': project_name})
